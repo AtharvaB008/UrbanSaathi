@@ -23,3 +23,13 @@ Thumbs.db
 # Local databases
 *.db
 *.sqlite3
+
+# Temporary geospatial outputs
+*.aux.xml
+*.ovr
+
+# Generated test output
+resident_map_test.html
+resident_map_test.html
+
+data/mangaluru_facilities_cache.json
