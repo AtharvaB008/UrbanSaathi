@@ -9,6 +9,9 @@ PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 from database.init_db import init_database
+
+from modules.photo_service import save_complaint_photo
+
 from modules.report_service import (
     REPORT_CATEGORIES,
     submit_report,
@@ -81,21 +84,36 @@ with st.form("civic_report_form", clear_on_submit=True):
         height=130
     )
 
+    uploaded_photo = st.file_uploader(
+        "Attach a Photo (Optional)",
+        type=["jpg", "jpeg", "png", "webp"],
+        help="Upload a photo of the civic issue (maximum 5 MB).",
+    )
+
+
     submitted = st.form_submit_button(
         "Submit Complaint",
         type="primary",
         use_container_width=True
     )
 
+
 if submitted:
+    photo_path = None
+    report_id = None
+
     try:
+        if uploaded_photo is not None:
+            photo_path = save_complaint_photo(uploaded_photo)
+
         report_id = submit_report(
             title=title,
             category=category,
             description=description,
             ward_id=ward_id,
             locality=locality,
-            location_details=location_details
+            location_details=location_details,
+            photo_path=photo_path,
         )
 
         st.success(
@@ -116,6 +134,12 @@ if submitted:
             "Unable to submit the complaint right now. "
             "Please try again."
         )
+
+    finally:
+        if photo_path is not None and report_id is None:
+            (PROJECT_ROOT / photo_path).unlink(missing_ok=True)
+
+
 
 
 

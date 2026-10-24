@@ -85,10 +85,29 @@ def submit_report(
         ):
             raise ValueError("Coordinates are outside valid ranges.")
 
-    # Evidence paths will be validated by the upload service.
-    # This function currently accepts no photo evidence.
+
+    # Validate references to saved complaint photos.
     if photo_path is not None:
-        raise ValueError("Photo uploads are not implemented yet.")
+        if not isinstance(photo_path, str):
+            raise ValueError("Invalid photo path.")
+
+        from modules.photo_service import UPLOAD_DIR
+
+        photo_file = (PROJECT_ROOT / photo_path).resolve()
+        upload_folder = UPLOAD_DIR.resolve()
+
+        if photo_file.parent != upload_folder:
+            raise ValueError("Photo must be in the complaint uploads folder.")
+
+        if photo_file.suffix.lower() not in (".jpg", ".png", ".webp"):
+            raise ValueError("Unsupported photo format.")
+
+        if not photo_file.is_file():
+            raise ValueError("Uploaded photo was not found.")
+
+        # Store paths consistently using forward slashes.
+        photo_path = photo_file.relative_to(PROJECT_ROOT).as_posix()
+
 
     with get_connection() as connection:
         cursor = connection.execute(

@@ -205,6 +205,35 @@ try:
                 "**Description:**",
                 selected_report["description"]
             )
+
+            st.markdown("### Attached Photo")
+
+            photo_path = selected_report["photo_path"]
+
+            if photo_path:
+                from modules.photo_service import UPLOAD_DIR
+
+                photo_file = (PROJECT_ROOT / photo_path).resolve()
+
+                if (
+                    photo_file.parent == UPLOAD_DIR.resolve()
+                    and photo_file.is_file()
+                    and photo_file.suffix.lower()
+                    in (".jpg", ".png", ".webp")
+                ):
+                    st.image(
+                        str(photo_file),
+                        caption="Photo submitted with this complaint",
+                        width=450,
+                    )
+                else:
+                    st.warning(
+                        "The attached photo could not be found."
+                    )
+            else:
+                st.info("No photo was attached to this complaint.")
+
+
             st.write(
                 "**Current Status:**",
                 selected_report["status"]
@@ -268,7 +297,7 @@ try:
                     options=available_statuses
                 )
 
-               
+
                 if new_status == "Rejected / Invalid":
                     note_label = "Reason for Rejection *"
                     note_placeholder = (
