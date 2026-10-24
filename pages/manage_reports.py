@@ -21,6 +21,10 @@ from modules.investigation_priority import (
     explain_investigation_priority,
 )
 
+from modules.complaint_intelligence import (
+    get_live_potential_duplicates,
+)
+
 init_database()
 
 st.set_page_config(
@@ -159,6 +163,54 @@ except Exception:
         "Unable to load investigation recommendations. "
         "Please check the complaint intelligence modules."
     )
+
+
+st.divider()
+
+# -----------------------------------------
+# Potential Duplicate Complaint Review
+# -----------------------------------------
+
+st.subheader("Potential Duplicate Complaint Review")
+
+st.caption(
+    "Identify complaints that may describe the same civic issue. "
+    "These matches are suggestions and require administrator verification."
+)
+
+try:
+    duplicate_matches = get_live_potential_duplicates()
+
+    if not duplicate_matches:
+        st.success(
+            "No potential duplicate complaint pairs were detected "
+            "among active complaints."
+        )
+    else:
+        duplicate_rows = []
+
+        for match in duplicate_matches:
+            duplicate_rows.append({
+                "Complaint 1": match["report_id_1"],
+                "Complaint 2": match["report_id_2"],
+                "Similarity Score": match["similarity_score"],
+                "Ward": match["ward_id"],
+                "Category": match["category"],
+            })
+
+        st.dataframe(
+            duplicate_rows,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.info(
+            "Review the complaint descriptions and locations "
+            "before deciding whether reports concern the same issue."
+        )
+
+except Exception:
+    st.error("Unable to load potential duplicate complaints.")
 
 
 st.divider()

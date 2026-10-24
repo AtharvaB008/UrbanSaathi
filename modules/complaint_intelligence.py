@@ -100,37 +100,6 @@ def calculate_complaint_similarity(complaint_a, complaint_b):
     return round(combined_score, 3)
 
 
-    """
-    Calculate a similarity score between two complaints.
-
-    Returns a value between 0.0 and 1.0.
-    Higher values indicate greater similarity.
-    """
-
-    if complaint_a["ward_id"] != complaint_b["ward_id"]:
-        return 0.0
-
-    if complaint_a["category"] != complaint_b["category"]:
-        return 0.0
-
-    text_a = normalize_complaint_text(
-        complaint_a.get("title", "") + " " +
-        complaint_a.get("description", "")
-    )
-
-    text_b = normalize_complaint_text(
-        complaint_b.get("title", "") + " " +
-        complaint_b.get("description", "")
-    )
-
-    if not text_a or not text_b:
-        return 0.0
-
-    return SequenceMatcher(
-        None,
-        text_a,
-        text_b
-    ).ratio()
 
 
 def find_potential_duplicates(
@@ -169,4 +138,32 @@ def find_potential_duplicates(
         matches,
         key=lambda match: match["similarity_score"],
         reverse=True
+    )
+
+def get_live_potential_duplicates(similarity_threshold=0.65):
+    """
+    Retrieve potentially duplicate complaints from SQLite.
+
+    Only active complaints are compared.
+    This function does not change database records.
+    """
+
+    from modules.report_service import get_reports
+
+    all_reports = get_reports()
+
+    closed_statuses = {
+        "Resolved",
+        "Rejected / Invalid",
+    }
+
+    active_reports = [
+        report
+        for report in all_reports
+        if report["status"] not in closed_statuses
+    ]
+
+    return find_potential_duplicates(
+        active_reports,
+        similarity_threshold=similarity_threshold,
     )
