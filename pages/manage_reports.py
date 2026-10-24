@@ -16,6 +16,11 @@ from modules.report_service import (
     update_report_status,
 )
 
+from modules.investigation_priority import (
+    get_live_investigation_recommendations,
+    explain_investigation_priority,
+)
+
 init_database()
 
 st.set_page_config(
@@ -66,6 +71,94 @@ try:
 
 except Exception:
     st.error("Unable to load complaint statistics.")
+
+
+st.divider()
+
+# -----------------------------------------
+# Investigation Priority Recommendations
+# -----------------------------------------
+
+st.subheader("Investigation Priority Recommendations")
+
+st.caption(
+    "Rule-based recommendations using complaint category, "
+    "potential duplicate reports, and complaint age. "
+    "These are advisory scores, not confirmed emergencies "
+    "or official municipal decisions."
+)
+
+try:
+    recommendations = get_live_investigation_recommendations()
+
+    if not recommendations:
+        st.info(
+            "No active complaints are available for "
+            "investigation-priority analysis."
+        )
+    else:
+        recommendation_rows = []
+
+        for item in recommendations:
+            recommendation_rows.append({
+                "Report ID": item["report_id"],
+                "Related Reports": item["related_complaint_count"],
+                "Priority Score": item["priority_score"],
+                "Recommended Priority": item["priority_level"],
+            })
+
+        st.dataframe(
+            recommendation_rows,
+            use_container_width=True,
+            hide_index=True,
+        )
+
+        st.markdown("### Understand the Recommendation")
+
+        recommendation_options = {
+            f"Complaint #{item['report_id']} — {item['priority_level']} Priority":
+            item
+            for item in recommendations
+        }
+
+        selected_recommendation_label = st.selectbox(
+            "Select a complaint to view its investigation priority explanation",
+            options=list(recommendation_options.keys()),
+            key="priority_explanation_selector",
+        )
+
+        selected_recommendation = recommendation_options[
+            selected_recommendation_label
+        ]
+
+        with st.expander(
+            "View Investigation Priority Explanation",
+            expanded=False,
+        ):
+            st.write(
+                explain_investigation_priority(
+                    selected_recommendation
+                )
+            )
+
+            st.caption(
+                "This recommendation is generated using "
+                "transparent Python scoring rules. "
+                "It does not automatically change complaint "
+                "status or replace administrator judgment."
+            )
+
+        st.info(
+            "Potential duplicates are identified using textual "
+            "and location similarity. An administrator should "
+            "verify matches before deciding what to investigate."
+        )
+
+except Exception:
+    st.error(
+        "Unable to load investigation recommendations. "
+        "Please check the complaint intelligence modules."
+    )
 
 
 st.divider()
