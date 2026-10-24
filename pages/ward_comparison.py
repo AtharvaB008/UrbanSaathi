@@ -1,97 +1,119 @@
-from modules.report_service import get_reports
-from modules.insight_agent import summarize_reports
+
 import streamlit as st
 import pandas as pd
-from shapely.geometry import Point
 import altair as alt
 
-from modules.data_loader import load_wards
-from modules.facilities_map import (
-    fetch_facilities,
-    classify_facility,
-    CATEGORIES,
+from modules.ward_facility_counts import build_ward_facility_counts
+from modules.report_service import get_reports
+from modules.insight_agent import (
+    summarize_reports,
+    explain_ward,
+    compare_wards,
 )
 
-
 st.set_page_config(
-    page_title="UrbanSaathi | Ward Comparison",
-    page_icon="🏙️",
+    page_title="Ward Comparison | UrbanSaathi",
+    page_icon="📈",
     layout="wide",
 )
 
-st.title("Neighbourhood Comparison")
+st.title("📈 Neighbourhood Comparison")
 st.caption(
-    "Compare essential services available in two Mangaluru wards."
+    "Compare essential services across Mangaluru wards "
+    "and identify areas that warrant further investigation."
 )
 
+if st.button("← Back to Administration"):
+    st.switch_page("pages/administration.py")
 
-@st.cache_data(show_spinner="Loading neighbourhood data...")
-def get_facility_counts():
-    wards = load_wards()
-    elements = fetch_facilities()
+CATEGORY_COLUMNS = {
+    "Healthcare": "healthcare_count",
+    "Education": "education_count",
+    "Parks": "parks_count",
+    "Bus Stops & Stations": "transport_count",
+}
 
-    category_names = list(CATEGORIES.keys())
-    records = []
+FACILITY_COLORS = {
+    "Healthcare": "#E53935",          # Red
+    "Education": "#1E88E5",            # Blue
+    "Parks": "#43A047",                # Green
+    "Bus Stops & Stations": "#8E24AA", # Purple
+}
 
-    for _, ward in wards.iterrows():
-        records.append({
-            "ward_number": str(
-                ward.get("KGISWardNo", ward["KGISWardID"])
-            ),
-            "geometry": ward.geometry,
-            **{category: 0 for category in category_names},
-        })
-
-    seen = set()
-
-    for item in elements:
-        item_id = (item.get("type"), item.get("id"))
-
-        if item_id in seen:
-            continue
-        seen.add(item_id)
-
-        tags = item.get("tags", {})
-        category = classify_facility(tags)
-
-        if category is None:
-            continue
-
-        if "lat" in item and "lon" in item:
-            lat, lon = item["lat"], item["lon"]
-        elif "center" in item:
-            lat = item["center"]["lat"]
-            lon = item["center"]["lon"]
-        else:
-            continue
-
-        point = Point(lon, lat)
-
-        for record in records:
-            if record["geometry"].covers(point):
-                record[category] += 1
-                break
-
-    return pd.DataFrame([
-        {
-            "Ward": f"Ward {record['ward_number']}",
-            **{
-                category: record[category]
-                for category in category_names
-            },
-        }
-        for record in records
-    ])
-
+CATEGORY_LABELS = {
+    "Healthcare": "Healthcare facilities",
+    "Education": "Schools and colleges",
+    "Parks": "Parks and green spaces",
+    "Bus Stops & Stations": "Bus stops and stations",
+}
 
 try:
-    data = get_facility_counts()
+    with st.spinner("Loading ward facility data..."):
+        wards = build_ward_facility_counts().copy()
 
-    if len(data) < 2:
+    required = ["KGISWardNo", *CATEGORY_COLUMNS.values()]
+    missing = [column for column in required if column not in wards.columns]
+
+    if missing:
+        raise ValueError(f"Missing required columns: {missing}")
+
+    wards["KGISWardNo"] = pd.to_numeric(
+        wards["KGISWardNo"], errors="coerce"
+    )
+
+    for column in CATEGORY_COLUMNS.values():
+        wards[column] = pd.to_numeric(
+            wards[column], errors="coerce"
+        )
+
+    wards = wards.dropna(subset=["KGISWardNo"])
+
+    if wards.empty:
+        raise ValueError("No wards were loaded.")
+
+    for column in CATEGORY_COLUMNS.values():
+        if wards[column].isna().any() or (wards[column] < 0).any():
+            raise ValueError(f"Invalid facility counts in {column}.")
+
+    wards = wards.sort_values("KGISWardNo").reset_index(drop=True)
+    wards["Ward"] = wards["KGISWardNo"].astype(int).map(
+        lambda number: f"Ward {number}"
+    )
+
+    st.subheader("Facility distribution across wards")
+
+    selected_category = st.selectbox(
+        "Explore a facility type across all wards",
+        list(CATEGORY_COLUMNS.keys()),
+    )
+
+    count_column = CATEGORY_COLUMNS[selected_category]
+
+    chart_data = wards[["Ward", count_column]].rename(
+        columns={count_column: "Number of facilities"}
+    )
+
+    st.bar_chart(
+        chart_data,
+        x="Ward",
+        y="Number of facilities",
+        use_container_width=True,
+    )
+
+    st.caption(
+        f"Showing mapped {selected_category.lower()} by ward. "
+        "Counts alone do not measure population coverage, accessibility, "
+        "facility capacity or service quality."
+    )
+
+    st.divider()
+    st.subheader("Compare two neighbourhoods")
+
+    ward_names = wards["Ward"].tolist()
+
+    if len(ward_names) < 2:
         st.warning("At least two wards are needed for comparison.")
         st.stop()
-
-    ward_names = data["Ward"].tolist()
 
     col1, col2 = st.columns(2)
 
@@ -100,7 +122,7 @@ try:
             "First neighbourhood",
             ward_names,
             index=0,
-            key="ward_a",
+            key="comparison_ward_a",
         )
 
     with col2:
@@ -108,70 +130,68 @@ try:
             "Second neighbourhood",
             ward_names,
             index=1,
-            key="ward_b",
+            key="comparison_ward_b",
         )
 
     if ward_a == ward_b:
         st.info("Choose two different wards to compare them.")
         st.stop()
 
-    first = data.loc[data["Ward"] == ward_a].iloc[0]
-    second = data.loc[data["Ward"] == ward_b].iloc[0]
+    first = wards.loc[wards["Ward"] == ward_a].iloc[0]
+    second = wards.loc[wards["Ward"] == ward_b].iloc[0]
 
-    st.divider()
     st.subheader("Essential services")
 
-    categories = [
-        ("Healthcare", "Healthcare facilities"),
-        ("Education", "Schools and colleges"),
-        ("Parks", "Parks"),
-        ("Bus Stops & Stations", "Bus stops and stations"),
-    ]
-
-    for category, label in categories:
-        st.markdown(f"**{label}**")
+    for category, column in CATEGORY_COLUMNS.items():
+        label = CATEGORY_LABELS[category]
+        a = int(first[column])
+        b = int(second[column])
 
         left, right = st.columns(2)
 
-        a = int(first[category])
-        b = int(second[category])
+        with left:
+            st.metric(ward_a, a)
 
-        left.metric(ward_a, a)
-        right.metric(ward_b, b)
+        with right:
+            st.metric(ward_b, b)
 
         if a > b:
             st.caption(
-                f"{ward_a} has {a - b} more mapped "
-                f"{label.lower()} than {ward_b}."
+                f"{ward_a} has {a - b} more mapped {label.lower()} "
+                f"than {ward_b}."
             )
         elif b > a:
             st.caption(
-                f"{ward_b} has {b - a} more mapped "
-                f"{label.lower()} than {ward_a}."
+                f"{ward_b} has {b - a} more mapped {label.lower()} "
+                f"than {ward_a}."
             )
         else:
             st.caption(
-                f"Both wards have the same number of "
-                f"mapped {label.lower()}."
+                f"Both wards have the same number of mapped "
+                f"{label.lower()}."
             )
 
     st.divider()
-    st.subheader("Compare services at a glance")
+    st.subheader("Side-by-side facility chart")
 
-    chart_data = (
-        data[data["Ward"].isin([ward_a, ward_b])]
-        .set_index("Ward")[
-            [category for category, _ in categories]
-        ]
-        .rename(columns={
-            "Healthcare": "Healthcare",
-            "Education": "Education",
-            "Parks": "Parks",
-            "Bus Stops & Stations": "Bus stops and stations",
-        })
-    )
+    comparison_data = pd.DataFrame([
+        {
+            "Ward": ward_a,
+            **{
+                category: int(first[column])
+                for category, column in CATEGORY_COLUMNS.items()
+            },
+        },
+        {
+            "Ward": ward_b,
+            **{
+                category: int(second[column])
+                for category, column in CATEGORY_COLUMNS.items()
+            },
+        },
+    ])
 
-    chart_long = chart_data.reset_index().melt(
+    chart_long = comparison_data.melt(
         id_vars="Ward",
         var_name="Facility",
         value_name="Count",
@@ -179,166 +199,174 @@ try:
 
     chart = alt.Chart(chart_long).mark_bar().encode(
         x=alt.X("Ward:N", title="Neighbourhood"),
-        y=alt.Y("Count:Q", title="Number of facilities"),
+        y=alt.Y("Count:Q", title="Number of mapped facilities"),
         xOffset=alt.XOffset("Facility:N"),
         color=alt.Color(
-            "Facility:N",
-            scale=alt.Scale(
-                domain=[
-                    "Healthcare",
-                    "Education",
-                    "Parks",
-                    "Bus stops and stations",
-                ],
-                range=[
-                    "#E45756",
-                    "#4C78A8",
-                    "#90EE90",
-                    "#9467BD",
-                ],
-            ),
-            legend=alt.Legend(title="Facility type"),
-        ),
+    "Facility:N",
+    title="Facility type",
+    scale=alt.Scale(
+        domain=list(FACILITY_COLORS.keys()),
+        range=list(FACILITY_COLORS.values()),
+    ),
+),
         tooltip=[
-            alt.Tooltip("Ward:N", title="Neighbourhood"),
-            alt.Tooltip("Facility:N", title="Service"),
-            alt.Tooltip("Count:Q", title="Facilities"),
+            alt.Tooltip("Ward:N", title="Ward"),
+            alt.Tooltip("Facility:N", title="Facility type"),
+            alt.Tooltip("Count:Q", title="Count"),
         ],
-    ).properties(height=400)
+    ).properties(height=360)
 
     st.altair_chart(chart, use_container_width=True)
 
-    st.subheader("What should you know?")
-
-    st.write(
-        "These figures show the number of mapped facilities in "
-        "each ward. A larger number does not automatically mean "
-        "better access: ward population, facility capacity, "
-        "condition, and travel distance also matter."
-    )
-
-    st.info(
-        "Population comparison is not included yet because the "
-        "population dataset's units and reference year have not "
-        "been verified. We will add meaningful population and "
-        "population-density figures once those details are confirmed."
-    )
-
-    st.caption(
-        "Facility data comes from OpenStreetMap and may be "
-        "incomplete or out of date."
-    )
-    
     st.divider()
-    st.header("AI-Assisted Ward Insights")
-    st.caption(
-        "Evidence-based summaries to help municipal officials "
-        "identify patterns and areas for further investigation."
-    )
+    st.subheader("Service gaps to investigate")
 
-    # Explain facility differences using the counts already displayed.
-    
-    st.subheader("Service Gaps & Recommended Actions")
-
-    findings = []
-
-    for category, label in categories:
-        a = int(first[category])
-        b = int(second[category])
+    for category, column in CATEGORY_COLUMNS.items():
+        label = CATEGORY_LABELS[category]
+        a = int(first[column])
+        b = int(second[column])
 
         if a == 0 and b == 0:
-            title = f"{label}: No mapped facilities in either ward"
-            evidence = (
-                f"Neither {ward_a} nor {ward_b} has mapped "
-                f"{label.lower()} facilities."
+            finding = (
+                f"Neither ward has mapped {label.lower()}. "
+                "Check nearby service availability and resident travel times."
             )
-            action = (
-                "Assess where residents obtain this service, "
-                "their travel time, and whether underserved "
-                "localities need additional provision."
-            )
-
         elif a == 0 or b == 0:
             lower_ward = ward_a if a == 0 else ward_b
             other_ward = ward_b if a == 0 else ward_a
             other_count = b if a == 0 else a
 
-            title = f"{label}: No mapped facilities in {lower_ward}"
-            evidence = (
-                f"{lower_ward} has 0 mapped facilities, compared "
-                f"with {other_count} in {other_ward}."
+            finding = (
+                f"{lower_ward} has no mapped {label.lower()}, "
+                f"while {other_ward} has {other_count}. "
+                "Verify nearby alternatives, travel times and population served."
             )
-            action = (
-                "Assess nearby service availability, travel time, "
-                "and the population served. If an access gap is "
-                "confirmed, evaluate suitable service improvements."
-            )
-
         elif a < b:
-            title = f"{label}: Fewer mapped facilities in {ward_a}"
-            evidence = (
-                f"{ward_a} has {a} facilities, compared with "
-                f"{b} in {ward_b}."
+            finding = (
+                f"{ward_a} has fewer mapped {label.lower()} "
+                f"({a}) than {ward_b} ({b}). "
+                "Compare population per facility, accessibility and capacity."
             )
-            action = (
-                "Compare population per facility, travel time, "
-                "capacity, and service distribution to determine "
-                "whether additional provision is needed."
-            )
-
         elif b < a:
-            title = f"{label}: Fewer mapped facilities in {ward_b}"
-            evidence = (
-                f"{ward_b} has {b} facilities, compared with "
-                f"{a} in {ward_a}."
+            finding = (
+                f"{ward_b} has fewer mapped {label.lower()} "
+                f"({b}) than {ward_a} ({a}). "
+                "Compare population per facility, accessibility and capacity."
             )
-            action = (
-                "Compare population per facility, travel time, "
-                "capacity, and service distribution to determine "
-                "whether additional provision is needed."
-            )
-
         else:
-            title = f"{label}: Equal mapped facility counts"
-            evidence = (
-                f"Both wards have {a} mapped facilities."
-            )
-            action = (
-                "Compare population served, capacity, travel time, "
-                "and service quality. Equal counts do not guarantee "
-                "equal access."
+            finding = (
+                f"Both wards have {a} mapped {label.lower()}. "
+                "Equal counts do not necessarily mean equal access."
             )
 
-        findings.append({
-            "title": title,
-            "evidence": evidence,
-            "action": action,
-        })
-
-    for finding in findings:
         with st.container(border=True):
-            st.markdown(f"**{finding['title']}**")
-            st.write(f"**What the data shows:** {finding['evidence']}")
-            st.write(f"**Recommended action:** {finding['action']}")
+            st.markdown(f"**{label}**")
+            st.write(finding)
 
     st.caption(
-        "These are preliminary investigation recommendations based "
-        "on mapped facility counts, not confirmed service shortages. "
-        "Consider verified population, accessibility, facility "
-        "capacity, and service quality before making investment decisions."
+        "These are preliminary investigation signals, not confirmed "
+        "service shortages. Verify population, facility capacity, "
+        "travel times and data completeness before making decisions."
     )
 
+    
+    st.divider()
+    st.header("🤖 AI-Assisted Ward Insights")
+    st.caption(
+        "Evidence-based explanations for the two selected wards. "
+        "Missing scores and benchmarks are reported as unavailable."
+    )
 
-    # Summarize real civic complaints for the selected wards.
+    ward_a_data = {
+        "ward_id": str(int(first["KGISWardNo"])),
+        "ward_name": ward_a,
+        "priority": {"score": None, "components": []},
+        "facilities": {
+            category: {
+                "actual_count": int(first[column]),
+                "benchmark_count": None,
+                "source": "Mapped ward facility counts",
+            }
+            for category, column in CATEGORY_COLUMNS.items()
+        },
+        "missing_data": [
+            "Verified population and population density",
+            "Validated facility benchmarks",
+            "Official ward priority score",
+        ],
+    }
+
+    ward_b_data = {
+        "ward_id": str(int(second["KGISWardNo"])),
+        "ward_name": ward_b,
+        "priority": {"score": None, "components": []},
+        "facilities": {
+            category: {
+                "actual_count": int(second[column]),
+                "benchmark_count": None,
+                "source": "Mapped ward facility counts",
+            }
+            for category, column in CATEGORY_COLUMNS.items()
+        },
+        "missing_data": [
+            "Verified population and population density",
+            "Validated facility benchmarks",
+            "Official ward priority score",
+        ],
+    }
+
+    insights = compare_wards(ward_a_data, ward_b_data)
+
+    st.subheader("Ward comparison summary")
+    st.write(insights["score_comparison"])
+    st.info(
+        "Official priority scores are not available in this comparison "
+        "dataset. The following findings use observed facility counts "
+        "rather than estimated priority scores."
+    )
+
+    for ward_insight in (insights["ward_a"], insights["ward_b"]):
+        with st.container(border=True):
+            st.markdown(f"### {ward_insight['ward_name']}")
+            st.write(ward_insight["summary"])
+
+            st.markdown("**Facility findings**")
+            for finding in ward_insight["facility_findings"]:
+                actual = finding["actual_count"]
+                benchmark = finding["benchmark_count"]
+
+                if benchmark is None:
+                    st.write(
+                        f"- **{finding['category']}:** {actual} mapped "
+                        "facilities; benchmark unavailable."
+                    )
+                else:
+                    st.write(
+                        f"- **{finding['category']}:** {actual} mapped "
+                        f"facilities against a benchmark of {benchmark}."
+                    )
+
+            if ward_insight["warnings"]:
+                st.markdown("**Data limitations**")
+                for warning in ward_insight["warnings"]:
+                    st.write(f"- {warning}")
+
+            if ward_insight["investigations"]:
+                st.markdown("**Recommended investigations**")
+                for recommendation in ward_insight["investigations"]:
+                    st.write(f"- {recommendation}")
+
+    st.caption(insights["ward_a"]["disclaimer"])
+
+
     st.divider()
     st.subheader("Civic complaints in these wards")
 
     try:
         all_reports = get_reports()
 
-        # Compare report ward IDs with the ward numbers shown in the UI.
-        ward_a_id = ward_a.replace("Ward ", "").strip()
-        ward_b_id = ward_b.replace("Ward ", "").strip()
+        ward_a_id = str(int(first["KGISWardNo"]))
+        ward_b_id = str(int(second["KGISWardNo"]))
 
         reports_a = [
             report for report in all_reports
@@ -351,18 +379,22 @@ try:
 
         report_col_a, report_col_b = st.columns(2)
 
-        for col, ward_name, ward_reports in [
+        for column_ui, ward_name, ward_reports in [
             (report_col_a, ward_a, reports_a),
             (report_col_b, ward_b, reports_b),
         ]:
-            with col:
+            with column_ui:
                 st.markdown(f"**{ward_name}**")
                 result = summarize_reports(ward_reports)
 
-                st.metric("Recorded complaints", result["total_reports"])
+                st.metric(
+                    "Recorded complaints",
+                    result["total_reports"],
+                )
 
                 if result["category_counts"]:
                     st.markdown("**Reported issue categories**")
+
                     for category, count in sorted(
                         result["category_counts"].items(),
                         key=lambda item: item[1],
@@ -379,19 +411,14 @@ try:
 
         st.caption(
             "Complaint totals reflect reports stored in UrbanSaathi, "
-            "not the actual prevalence of problems. Confirm that "
-            "complaint ward IDs use the same numbering as the map."
+            "not the actual prevalence of problems. Verify that complaint "
+            "ward IDs use the same numbering as the ward dataset."
         )
 
     except Exception as report_error:
         st.warning("Civic complaint insights could not be loaded.")
         st.caption(f"Technical details: {report_error}")
 
-
 except Exception as error:
-    st.error("We couldn't load the neighbourhood comparison.")
-    st.caption(f"Technical details: {error}")
-    st.info(
-        "Check that the ward dataset and facility data are "
-        "available, then try again."
-    )
+    st.error("Could not load Ward Comparison.")
+    st.exception(error)

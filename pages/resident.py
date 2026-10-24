@@ -257,7 +257,7 @@ with row2_col1:
         key="compare_wards",
         use_container_width=True,
     ):
-        st.switch_page("pages/ward_comparison.py")
+        st.switch_page("pages/resident_comparison.py")
 
 with row2_col2:
     st.markdown(
