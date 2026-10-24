@@ -5,11 +5,7 @@ import altair as alt
 
 from modules.ward_facility_counts import build_ward_facility_counts
 from modules.report_service import get_reports
-from modules.insight_agent import (
-    summarize_reports,
-    explain_ward,
-    compare_wards,
-)
+from modules.insight_agent import summarize_reports
 
 st.set_page_config(
     page_title="Ward Comparison | UrbanSaathi",
@@ -270,94 +266,109 @@ try:
     )
 
     
+    
     st.divider()
     st.header("🤖 AI-Assisted Ward Insights")
     st.caption(
-        "Evidence-based explanations for the two selected wards. "
-        "Missing scores and benchmarks are reported as unavailable."
+        "Practical investigation suggestions based on mapped facility "
+        "counts in the two selected wards."
     )
 
-    ward_a_data = {
-        "ward_id": str(int(first["KGISWardNo"])),
-        "ward_name": ward_a,
-        "priority": {"score": None, "components": []},
-        "facilities": {
-            category: {
-                "actual_count": int(first[column]),
-                "benchmark_count": None,
-                "source": "Mapped ward facility counts",
-            }
+    st.subheader("Facility distribution summary")
+
+    st.write(
+        f"**{ward_a}:** "
+        + ", ".join(
+            f"{CATEGORY_LABELS[category]}: {int(first[column])}"
             for category, column in CATEGORY_COLUMNS.items()
-        },
-        "missing_data": [
-            "Verified population and population density",
-            "Validated facility benchmarks",
-            "Official ward priority score",
-        ],
-    }
-
-    ward_b_data = {
-        "ward_id": str(int(second["KGISWardNo"])),
-        "ward_name": ward_b,
-        "priority": {"score": None, "components": []},
-        "facilities": {
-            category: {
-                "actual_count": int(second[column]),
-                "benchmark_count": None,
-                "source": "Mapped ward facility counts",
-            }
-            for category, column in CATEGORY_COLUMNS.items()
-        },
-        "missing_data": [
-            "Verified population and population density",
-            "Validated facility benchmarks",
-            "Official ward priority score",
-        ],
-    }
-
-    insights = compare_wards(ward_a_data, ward_b_data)
-
-    st.subheader("Ward comparison summary")
-    st.write(insights["score_comparison"])
-    st.info(
-        "Official priority scores are not available in this comparison "
-        "dataset. The following findings use observed facility counts "
-        "rather than estimated priority scores."
+        )
     )
 
-    for ward_insight in (insights["ward_a"], insights["ward_b"]):
+    st.write(
+        f"**{ward_b}:** "
+        + ", ".join(
+            f"{CATEGORY_LABELS[category]}: {int(second[column])}"
+            for category, column in CATEGORY_COLUMNS.items()
+        )
+    )
+
+    st.subheader("Recommended actions")
+
+    for category, column in CATEGORY_COLUMNS.items():
+        label = CATEGORY_LABELS[category]
+        count_a = int(first[column])
+        count_b = int(second[column])
+
         with st.container(border=True):
-            st.markdown(f"### {ward_insight['ward_name']}")
-            st.write(ward_insight["summary"])
+            st.markdown(f"**{label}**")
 
-            st.markdown("**Facility findings**")
-            for finding in ward_insight["facility_findings"]:
-                actual = finding["actual_count"]
-                benchmark = finding["benchmark_count"]
+            if count_a == 0 and count_b == 0:
+                st.write(
+                    f"Neither {ward_a} nor {ward_b} has mapped "
+                    f"{label.lower()}."
+                )
+                st.write(
+                    "Action: Check nearby facilities and confirm whether "
+                    "services are available to residents before considering "
+                    "new provision."
+                )
 
-                if benchmark is None:
-                    st.write(
-                        f"- **{finding['category']}:** {actual} mapped "
-                        "facilities; benchmark unavailable."
-                    )
-                else:
-                    st.write(
-                        f"- **{finding['category']}:** {actual} mapped "
-                        f"facilities against a benchmark of {benchmark}."
-                    )
+            elif count_a == 0 or count_b == 0:
+                lower_ward = ward_a if count_a == 0 else ward_b
+                other_ward = ward_b if count_a == 0 else ward_a
+                other_count = count_b if count_a == 0 else count_a
 
-            if ward_insight["warnings"]:
-                st.markdown("**Data limitations**")
-                for warning in ward_insight["warnings"]:
-                    st.write(f"- {warning}")
+                st.write(
+                    f"{lower_ward} has no mapped {label.lower()}, while "
+                    f"{other_ward} has {other_count}."
+                )
+                st.write(
+                    f"Action: Check whether facilities in or near "
+                    f"{lower_ward} are missing from the map. Identify "
+                    "accessible nearby services and investigate whether "
+                    "residents face a genuine service gap."
+                )
 
-            if ward_insight["investigations"]:
-                st.markdown("**Recommended investigations**")
-                for recommendation in ward_insight["investigations"]:
-                    st.write(f"- {recommendation}")
+            elif count_a < count_b:
+                st.write(
+                    f"{ward_a} has fewer mapped {label.lower()} "
+                    f"({count_a}) than {ward_b} ({count_b})."
+                )
+                st.write(
+                    f"Action: Review service locations and travel options "
+                    f"for {ward_a}. Check whether existing facilities in "
+                    "nearby areas can serve residents before considering "
+                    "service expansion."
+                )
 
-    st.caption(insights["ward_a"]["disclaimer"])
+            elif count_b < count_a:
+                st.write(
+                    f"{ward_b} has fewer mapped {label.lower()} "
+                    f"({count_b}) than {ward_a} ({count_a})."
+                )
+                st.write(
+                    f"Action: Review service locations and travel options "
+                    f"for {ward_b}. Check whether existing facilities in "
+                    "nearby areas can serve residents before considering "
+                    "service expansion."
+                )
 
+            else:
+                st.write(
+                    f"Both wards have {count_a} mapped "
+                    f"{label.lower()}."
+                )
+                st.write(
+                    "Action: Compare facility locations and available "
+                    "services to identify differences that equal counts "
+                    "may not reveal."
+                )
+
+    st.caption(
+        "Suggestions are based on mapped facility counts only. Fewer "
+        "facilities do not automatically indicate inadequate service. "
+        "Confirm facility locations and access before making decisions."
+    )
 
     st.divider()
     st.subheader("Civic complaints in these wards")
