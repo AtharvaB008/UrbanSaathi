@@ -250,6 +250,12 @@ def update_report_status(report_id, new_status, admin_note=None):
     if new_status not in allowed_statuses:
         raise ValueError("Invalid report status.")
 
+    if new_status == "Submitted":
+        raise ValueError(
+            "Submitted is an initial status and cannot be assigned again."
+        )
+
+
     if isinstance(report_id, bool):
         raise ValueError("Invalid report ID.")
 
