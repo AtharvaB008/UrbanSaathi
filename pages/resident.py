@@ -159,7 +159,7 @@ with metric2:
 with metric3:
     st.metric(
         "Resident tools",
-        "4",
+        "5",
         help="Population map, facilities, ward comparison and civic issues.",
     )
 
@@ -281,5 +281,29 @@ with row2_col2:
         st.switch_page("pages/reports.py")
 
 
+
+# AI Ward Matcher — fifth resident feature
+st.markdown(
+    """
+    <div class="feature-card">
+        <h3>5. Find Your Ideal Ward ✨</h3>
+        <p>
+            Tell us what matters most to you — healthcare, schools,
+            parks, public transport or population density.
+            Get personalised ward recommendations based on your priorities.
+        </p>
+    </div>
+    """,
+    unsafe_allow_html=True,
+)
+
+if st.button(
+    "Find My Best-Matched Ward",
+    key="find_ideal_ward",
+    use_container_width=True,
+):
+    st.switch_page("pages/ward_matcher.py")
+
 st.divider()
 st.caption("UrbanSaathi | Mangaluru, Karnataka | Hackathon prototype")
+
