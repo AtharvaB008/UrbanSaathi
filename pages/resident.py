@@ -271,12 +271,14 @@ with row2_col2:
         """,
         unsafe_allow_html=True,
     )
+    
     if st.button(
         "Open Civic Issues",
         key="civic_issues",
         use_container_width=True,
     ):
-        st.info("Civic issue reporting will be connected to the shared backend.")
+        st.switch_page("pages/reports.py")
+
 
 st.divider()
 st.caption("UrbanSaathi | Mangaluru, Karnataka | Hackathon prototype")

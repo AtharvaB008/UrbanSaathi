@@ -166,6 +166,7 @@ if track_clicked:
             if not history:
                 st.info("No status history is available.")
             else:
+                
                 for entry in history:
                     st.markdown(
                         f"**{entry['new_status']}**"
@@ -175,7 +176,20 @@ if track_clicked:
                         f"Updated: {entry['changed_at']}"
                     )
 
+                    if entry["admin_note"]:
+                        if entry["new_status"] == "Rejected / Invalid":
+                            st.warning(
+                                "Reason for Rejection: "
+                                + entry["admin_note"]
+                            )
+                        else:
+                            st.info(
+                                "Administrative Update: "
+                                + entry["admin_note"]
+                            )
+
                     st.divider()
+
 
 
     except ValueError as error:
