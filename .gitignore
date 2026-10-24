@@ -31,3 +31,5 @@ Thumbs.db
 # Generated test output
 resident_map_test.html
 resident_map_test.html
+
+data/mangaluru_facilities_cache.json

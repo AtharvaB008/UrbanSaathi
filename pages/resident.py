@@ -1,3 +1,4 @@
+
 from modules.data_loader import load_wards
 import streamlit as st
 
@@ -14,13 +15,11 @@ st.markdown(
     .stApp {
         background: #F6F9F8;
     }
-
     .block-container {
         max-width: 1450px;
         padding-top: 1.5rem;
         padding-bottom: 3rem;
     }
-
     .hero {
         background: linear-gradient(120deg, #123B3A, #167D75);
         padding: 2.5rem;
@@ -28,27 +27,23 @@ st.markdown(
         margin: 1rem 0 2rem;
         color: white;
     }
-
     .hero h1 {
         color: white;
         font-size: 2.5rem;
         margin: 0.7rem 0;
     }
-
     .hero p {
         color: #E0F2F1;
         font-size: 1.05rem;
         margin-bottom: 0;
         line-height: 1.7;
     }
-
     .eyebrow {
         color: #A7F3D0;
         letter-spacing: 2px;
         font-size: 0.8rem;
         font-weight: 700;
     }
-
     .feature-card {
         background: white;
         border: 1px solid #DCE9E6;
@@ -56,36 +51,26 @@ st.markdown(
         padding: 1.3rem;
         min-height: 175px;
     }
-
     .feature-card h3 {
         color: #153F3B;
         font-size: 1.15rem;
     }
-
     .feature-card p {
         color: #60736F;
         font-size: 0.94rem;
         line-height: 1.6;
     }
-
-    
     .section-note {
         color: #465F5A;
         font-size: 0.95rem;
     }
-
-    /* Improve readability of headings and metric values */
     .stApp h2,
-    .stApp h3 {
-        color: #153F3B;
-    }
-
+    .stApp h3,
     .stApp [data-testid="stMetricLabel"],
     .stApp [data-testid="stMetricValue"],
     .stApp [data-testid="stMetricDelta"] {
         color: #153F3B;
     }
-
     </style>
     """,
     unsafe_allow_html=True,
@@ -118,22 +103,19 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-
 # Overview
 st.subheader("Mangaluru at a glance")
-
 st.markdown(
     """
     <p class="section-note">
         Explore population patterns, public facilities and neighbourhood
-        information through the tools below. Indicators will be added
-        as their data sources and coverage are verified.
+        information through the tools below.
     </p>
     """,
     unsafe_allow_html=True,
 )
 
-# Load the ward count from the actual dataset
+# Ward count
 try:
     wards = load_wards()
     ward_count = wards["KGISWardID"].nunique()
@@ -143,6 +125,21 @@ except Exception as error:
     ward_status = "Ward data could not be loaded"
     st.warning(f"Unable to load ward information: {error}")
 
+# Facility counts
+facility_counts = {}
+total_facilities = "Unavailable"
+facility_status = "Facility data could not be loaded"
+
+try:
+    from modules.facilities_map import create_facilities_map
+
+    _, facility_counts = create_facilities_map()
+    total_facilities = sum(facility_counts.values())
+    facility_status = "Loaded from facilities data"
+except Exception as error:
+    st.warning(f"Unable to load facility counts: {error}")
+
+# Overview metrics
 metric1, metric2, metric3 = st.columns(3)
 
 with metric1:
@@ -154,9 +151,9 @@ with metric1:
 
 with metric2:
     st.metric(
-        "City indicators",
-        "In development",
-        help="Verified population and facility indicators will appear here.",
+        "Total facilities",
+        total_facilities,
+        help=facility_status,
     )
 
 with metric3:
@@ -166,8 +163,27 @@ with metric3:
         help="Population map, facilities, ward comparison and civic issues.",
     )
 
+st.markdown("#### Facilities by category")
+
+health_col, education_col, parks_col, transport_col = st.columns(4)
+
+with health_col:
+    st.metric("Healthcare", facility_counts.get("Healthcare", 0))
+
+with education_col:
+    st.metric("Education", facility_counts.get("Education", 0))
+
+with parks_col:
+    st.metric("Parks", facility_counts.get("Parks", 0))
+
+with transport_col:
+    st.metric(
+        "Bus Stops & Stations",
+        facility_counts.get("Bus Stops & Stations", 0),
+    )
+
 st.caption(
-    "Data note: ward boundaries are loaded from the current project dataset. "
+    "Data note: facility totals reflect the current facilities dataset. "
     "Population units, reference year and facility coverage still require verification."
 )
 
@@ -199,7 +215,7 @@ with row1_col1:
         use_container_width=True,
     ):
         st.switch_page("pages/population_map.py")
-        
+
 with row1_col2:
     st.markdown(
         """
@@ -213,8 +229,12 @@ with row1_col2:
         """,
         unsafe_allow_html=True,
     )
-    if st.button("Explore Facilities", key="facilities", use_container_width=True):
-        st.info("The facilities explorer will be connected in a later step.")
+    if st.button(
+        "Explore Facilities",
+        key="facilities",
+        use_container_width=True,
+    ):
+        st.switch_page("pages/facilities.py")
 
 row2_col1, row2_col2 = st.columns(2, gap="large")
 
@@ -231,7 +251,11 @@ with row2_col1:
         """,
         unsafe_allow_html=True,
     )
-    if st.button("Compare Wards", key="compare_wards", use_container_width=True):
+    if st.button(
+        "Compare Wards",
+        key="compare_wards",
+        use_container_width=True,
+    ):
         st.info("Ward comparisons and neighbourhood insights are planned next.")
 
 with row2_col2:
@@ -247,41 +271,12 @@ with row2_col2:
         """,
         unsafe_allow_html=True,
     )
-    if st.button("Open Civic Issues", key="civic_issues", use_container_width=True):
+    if st.button(
+        "Open Civic Issues",
+        key="civic_issues",
+        use_container_width=True,
+    ):
         st.info("Civic issue reporting will be connected to the shared backend.")
 
 st.divider()
-
-
-st.divider()
-st.subheader("Explore UrbanSaathi")
-
-col1, col2 = st.columns(2, gap="large")
-
-with col1:
-    st.markdown("### Population Density Map")
-    st.write(
-        "Explore population distribution across Mangaluru's wards."
-    )
-    if st.button(
-        "Open Population Map",
-        key="population_map",
-        use_container_width=True,
-    ):
-        st.switch_page("pages/population_map.py")
-
-with col2:
-    st.markdown("### Facilities Distribution Map")
-    st.write(
-        "Explore healthcare, education, parks and public transport."
-    )
-    if st.button(
-        "Open Facilities Map",
-        key="facilities_map",
-        use_container_width=True,
-    ):
-        st.switch_page("pages/facilities.py")
-
-st.caption(
-    "UrbanSaathi | Mangaluru, Karnataka | Hackathon prototype"
-)
+st.caption("UrbanSaathi | Mangaluru, Karnataka | Hackathon prototype")
