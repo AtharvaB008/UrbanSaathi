@@ -251,12 +251,13 @@ with row2_col1:
         """,
         unsafe_allow_html=True,
     )
+
     if st.button(
         "Compare Wards",
         key="compare_wards",
         use_container_width=True,
     ):
-        st.info("Ward comparisons and neighbourhood insights are planned next.")
+        st.switch_page("pages/ward_comparison.py")
 
 with row2_col2:
     st.markdown(
@@ -271,7 +272,7 @@ with row2_col2:
         """,
         unsafe_allow_html=True,
     )
-    
+
     if st.button(
         "Open Civic Issues",
         key="civic_issues",
