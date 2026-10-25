@@ -25,6 +25,21 @@ if st.button(
 ):
     st.switch_page("pages/manage_reports.py")
 
+    st.divider()
+
+st.subheader("Municipal Intelligence")
+
+st.write(
+    "Explore evidence-based ward insights, facility gaps, "
+    "and civic complaint patterns."
+)
+
+if st.button(
+    "Open Municipal Insights",
+    use_container_width=True,
+):
+    st.switch_page("pages/insights.py")
+
 st.info(
     "Additional urban planning and ward-level "
     "administration features will be integrated here."
