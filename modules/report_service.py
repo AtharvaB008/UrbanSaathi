@@ -28,9 +28,10 @@ def submit_report(
     ward_id,
     locality,
     location_details,
-    latitude=None,
+        latitude=None,
     longitude=None,
     photo_path=None,
+    resident_id=None,
 ):
     """Validate and save a civic report with its initial history."""
 
@@ -112,12 +113,13 @@ def submit_report(
     with get_connection() as connection:
         cursor = connection.execute(
             """
-            INSERT INTO civic_reports (
-                title, category, description,
-                ward_id, locality, location_details,
-                latitude, longitude, photo_path
-            )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                INSERT INTO civic_reports (
+        title, category, description,
+        ward_id, locality, location_details,
+        latitude, longitude, photo_path,
+        resident_id
+    )
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 title.strip(),
@@ -129,6 +131,7 @@ def submit_report(
                 latitude,
                 longitude,
                 photo_path,
+                resident_id,
             ),
         )
 

@@ -12,6 +12,8 @@ from database.init_db import init_database
 
 from modules.photo_service import save_complaint_photo
 
+from modules.resident_identity import get_resident_id
+
 from modules.report_service import (
     REPORT_CATEGORIES,
     submit_report,
@@ -31,6 +33,10 @@ st.set_page_config(
 
 st.title("Civic Reports")
 st.write("Report civic issues in your neighbourhood.")
+
+resident_id = get_resident_id()
+
+st.info(f"Your Resident ID: {resident_id}")
 
 st.info(
     "Complaint submission and status tracking "
@@ -114,6 +120,7 @@ if submitted:
             locality=locality,
             location_details=location_details,
             photo_path=photo_path,
+            resident_id=resident_id,
         )
 
         st.success(
@@ -190,7 +197,7 @@ if track_clicked:
             if not history:
                 st.info("No status history is available.")
             else:
-                
+
                 for entry in history:
                     st.markdown(
                         f"**{entry['new_status']}**"

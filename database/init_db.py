@@ -81,6 +81,7 @@ def init_database():
                 latitude REAL CHECK (latitude BETWEEN -90 AND 90),
                 longitude REAL CHECK (longitude BETWEEN -180 AND 180),
                 photo_path TEXT,
+                resident_id TEXT,
                 status TEXT NOT NULL DEFAULT 'Submitted'
                     CHECK (
                         status IN (
@@ -128,6 +129,18 @@ def init_database():
                     ON DELETE CASCADE
             );
         """)
+        # Add Resident ID support to existing databases.
+        existing_columns = {
+            row["name"]
+            for row in connection.execute(
+                "PRAGMA table_info(civic_reports)"
+            ).fetchall()
+        }
+
+        if "resident_id" not in existing_columns:
+            connection.execute(
+                "ALTER TABLE civic_reports ADD COLUMN resident_id TEXT"
+            )
 
         # Insert the 60 agreed ward numbers only if missing.
         connection.executemany(
