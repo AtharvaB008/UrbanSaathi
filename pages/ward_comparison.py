@@ -1,8 +1,10 @@
 
 import streamlit as st
 import pandas as pd
+import altair as alt
 
 from modules.ward_facility_counts import build_ward_facility_counts
+
 
 st.set_page_config(
     page_title="Ward Comparison | UrbanSaathi",
@@ -12,14 +14,14 @@ st.set_page_config(
 
 st.title("📈 Ward Comparison")
 st.write(
-    "Compare facility distribution across Mangaluru wards "
-    "to understand how essential services are distributed."
+    "Compare essential services across Mangaluru wards, "
+    "understand differences between neighbourhoods, and identify "
+    "areas that may need further investigation."
 )
 
 if st.button("← Back to Administration"):
     st.switch_page("pages/administration.py")
 
-st.divider()
 
 CATEGORY_COLUMNS = {
     "Healthcare": "healthcare_count",
@@ -28,85 +30,196 @@ CATEGORY_COLUMNS = {
     "Bus stops": "transport_count",
 }
 
+
 try:
     with st.spinner("Loading ward facility data..."):
         wards = build_ward_facility_counts().copy()
 
     required = ["KGISWardNo", *CATEGORY_COLUMNS.values()]
-    missing = [col for col in required if col not in wards.columns]
+    missing = [column for column in required if column not in wards.columns]
 
     if missing:
         raise ValueError(f"Missing required columns: {missing}")
 
-    wards["_ward_sort"] = pd.to_numeric(
-        wards["KGISWardNo"], errors="raise"
-    )
-
-    for column in CATEGORY_COLUMNS.values():
-        wards[column] = pd.to_numeric(
-            wards[column], errors="coerce"
-        )
-
-        if wards[column].isna().any() or (wards[column] < 0).any():
-            raise ValueError(
-                f"Invalid facility counts in {column}."
-            )
-
-    wards = wards.sort_values(
-        "_ward_sort"
-    ).reset_index(drop=True)
-
     if wards.empty:
         raise ValueError("No wards were loaded.")
 
-    # Independent controls for the Ward Comparison chart.
-    st.subheader("📊 Ward Facility Comparison")
+    # Validate and prepare the shared ward data.
+    wards["KGISWardNo"] = wards["KGISWardNo"].astype(str).str.strip()
+
+    for column in CATEGORY_COLUMNS.values():
+        wards[column] = pd.to_numeric(wards[column], errors="coerce")
+
+        if wards[column].isna().any() or (wards[column] < 0).any():
+            raise ValueError(f"Invalid facility counts in {column}.")
+
+    wards = wards.sort_values(
+        "KGISWardNo",
+        key=lambda series: pd.to_numeric(series, errors="coerce"),
+    ).reset_index(drop=True)
+
+    wards["Ward"] = "Ward " + wards["KGISWardNo"]
+
+    st.subheader("Compare two wards")
+
+    ward_names = wards["Ward"].tolist()
+
+    if len(ward_names) < 2:
+        st.warning("At least two wards are needed for comparison.")
+        st.stop()
+
+    col1, col2 = st.columns(2)
+
+    with col1:
+        ward_a = st.selectbox(
+            "First ward",
+            ward_names,
+            index=0,
+            key="comparison_ward_a",
+        )
+
+    with col2:
+        ward_b = st.selectbox(
+            "Second ward",
+            ward_names,
+            index=1,
+            key="comparison_ward_b",
+        )
+
+    if ward_a == ward_b:
+        st.info("Choose two different wards to compare their services.")
+        st.stop()
+
+    first = wards.loc[wards["Ward"] == ward_a].iloc[0]
+    second = wards.loc[wards["Ward"] == ward_b].iloc[0]
+
+    st.divider()
+    st.subheader("Essential services side by side")
+
+    for category, column in CATEGORY_COLUMNS.items():
+        left, right = st.columns(2)
+
+        a = int(first[column])
+        b = int(second[column])
+
+        with left:
+            st.metric(f"{ward_a} · {category}", a)
+
+        with right:
+            st.metric(f"{ward_b} · {category}", b)
+
+        if a > b:
+            st.caption(
+                f"{ward_a} has {a - b} more mapped {category.lower()} "
+                f"than {ward_b}."
+            )
+        elif b > a:
+            st.caption(
+                f"{ward_b} has {b - a} more mapped {category.lower()} "
+                f"than {ward_a}."
+            )
+        else:
+            st.caption(
+                f"Both wards have the same number of mapped "
+                f"{category.lower()}."
+            )
+
+    st.divider()
+    st.subheader("📊 Compare all services")
+
+    comparison_data = wards[
+        wards["Ward"].isin([ward_a, ward_b])
+    ][["Ward", *CATEGORY_COLUMNS.values()]].copy()
+
+    comparison_data = comparison_data.rename(
+        columns={
+            column: category
+            for category, column in CATEGORY_COLUMNS.items()
+        }
+    )
+
+    chart_long = comparison_data.melt(
+        id_vars="Ward",
+        var_name="Facility type",
+        value_name="Number of facilities",
+    )
+
+    chart = (
+        alt.Chart(chart_long)
+        .mark_bar()
+        .encode(
+            x=alt.X("Ward:N", title="Ward"),
+            y=alt.Y("Number of facilities:Q", title="Mapped facilities"),
+            xOffset=alt.XOffset("Facility type:N"),
+            color=alt.Color(
+                "Facility type:N",
+                title="Service type",
+            ),
+            tooltip=[
+                alt.Tooltip("Ward:N", title="Ward"),
+                alt.Tooltip("Facility type:N", title="Service"),
+                alt.Tooltip(
+                    "Number of facilities:Q",
+                    title="Facilities",
+                ),
+            ],
+        )
+        .properties(height=380)
+    )
+
+    st.altair_chart(chart, use_container_width=True)
+
+    st.divider()
+    st.subheader("Explore one service across every ward")
 
     selected_category = st.selectbox(
-        "Select a facility to compare",
+        "Select a facility type",
         list(CATEGORY_COLUMNS.keys()),
         key="comparison_chart_category",
     )
 
     count_column = CATEGORY_COLUMNS[selected_category]
 
-    chart_data = wards[
-        ["KGISWardNo", count_column]
-    ].copy()
-
-    chart_data["KGISWardNo"] = (
-        "Ward " + chart_data["KGISWardNo"].astype(str)
-    )
-
-    chart_data = chart_data.rename(
-        columns={
-            "KGISWardNo": "Ward",
-            count_column: "Number of facilities",
-        }
+    all_wards_chart = wards[["Ward", count_column]].rename(
+        columns={count_column: "Number of facilities"}
     )
 
     st.bar_chart(
-        chart_data,
+        all_wards_chart,
         x="Ward",
         y="Number of facilities",
         use_container_width=True,
     )
 
-    st.caption(
-        f"Showing the number of {selected_category.lower()} "
-        "facilities recorded in each ward. Counts alone do not "
-        "account for population, accessibility, or service capacity."
+    st.divider()
+    st.subheader("What should you know?")
+
+    st.write(
+        "A ward with fewer mapped facilities may warrant closer "
+        "investigation, especially when compared with wards serving "
+        "similar populations. These counts alone cannot establish "
+        "whether residents have adequate access to services."
     )
 
-    st.divider()
+    st.info(
+        "Population, facility capacity, condition, and travel distance "
+        "are not included in this comparison. Population-based conclusions "
+        "should wait until the population dataset's units and reference "
+        "year are verified."
+    )
+
+    st.caption(
+        "Facility counts are based on the project's mapped facility data. "
+        "Records may be incomplete or out of date."
+    )
 
     st.subheader("🤖 Agentic AI Review")
+
     st.info(
-        "Reserved for future development. The AI review can "
-        "later interpret ward comparisons and highlight areas "
-        "that may warrant further investigation."
+        "AI-generated investment recommendations can be added here after "
+        "the ward population and service-access data have been validated."
     )
 
 except Exception as error:
     st.error("Could not load Ward Comparison.")
-    st.exception(error)
+    st.caption(f"Technical details: {error}")

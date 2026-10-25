@@ -7,9 +7,6 @@ st.set_page_config(
     layout="wide",
 )
 
-if st.button("← Back to Home"):
-    st.switch_page("app.py")
-
 st.title("🏛️ Administration Portal")
 st.write(
     "Urban planning, civic reports and ward-level investment diagnostics."
@@ -19,8 +16,7 @@ st.divider()
 
 st.subheader("City Planning Tools")
 
-
-map_col, diagnostics_col, compression_col = st.columns(3, gap="large")
+map_col, diagnostics_col, comparison_col = st.columns(3, gap="large")
 
 with map_col:
     st.markdown("### 🗺️ City Map")
@@ -39,21 +35,30 @@ with diagnostics_col:
     if st.button("Open Ward Diagnostics", use_container_width=True):
         st.switch_page("pages/diagnostics.py")
 
-
-with compression_col:
+with comparison_col:
     st.markdown("### 📈 Ward Comparison")
     st.write(
-        "Compare ward-level facility counts and overall priority scores "
-        "using interactive charts."
+        "Compare ward-level facility counts and identify "
+        "areas that may need further investigation."
     )
     if st.button("Open Ward Comparison", use_container_width=True):
         st.switch_page("pages/ward_comparison.py")
 
+st.divider()
 
+st.subheader("Civic Complaint Management")
+
+st.write(
+    "View resident complaints, update their statuses, "
+    "and review complaint statistics."
+)
+
+if st.button("Manage Civic Reports", use_container_width=True):
+    st.switch_page("pages/manage_reports.py")
 
 st.divider()
 
-st.subheader("Data status")
+st.subheader("Data Status")
 
 st.info(
     "Facility counts are based on mapped records within ward boundaries. "

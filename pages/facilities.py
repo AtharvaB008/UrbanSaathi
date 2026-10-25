@@ -11,7 +11,10 @@ st.set_page_config(
 )
 
 st.title("Facilities Distribution")
-st.caption("Explore healthcare, education, parks, and public transport facilities across Mangaluru.")
+st.caption(
+    "Explore healthcare, education, parks, and public transport "
+    "facilities across Mangaluru."
+)
 
 if st.button("← Back to Resident Portal"):
     st.switch_page("pages/resident.py")
@@ -28,7 +31,10 @@ try:
     col1.metric("Healthcare", counts.get("Healthcare", 0))
     col2.metric("Education", counts.get("Education", 0))
     col3.metric("Parks", counts.get("Parks", 0))
-    col4.metric("Bus Stops & Stations", counts.get("Bus Stops & Stations", 0))
+    col4.metric(
+        "Bus Stops & Stations",
+        counts.get("Bus Stops & Stations", 0),
+    )
 
     components.html(
         city_map.get_root().render(),
