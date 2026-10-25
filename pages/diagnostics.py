@@ -4,6 +4,7 @@ import pandas as pd
 import numpy as np
 
 from modules.ward_facility_counts import build_ward_facility_counts
+from modules.insight_agent import generate_diagnostics_insights
 
 st.set_page_config(
     page_title="Ward Diagnostics | UrbanSaathi",
@@ -226,6 +227,79 @@ try:
         "Showing up to 10 wards with the highest selected priority scores. "
         "Higher scores indicate larger gaps against an equal-ward distribution "
         "benchmark, not a definitive measure of service need."
+    )
+
+
+    st.divider()
+
+    # SECTION 4: Municipal Insight Agent.
+    st.subheader("🤖 Municipal Insight Agent")
+    st.write(
+        "Evidence-based investigation priorities and suggested municipal "
+        "actions derived from the mapped facility counts and gap scores."
+    )
+
+    insights = generate_diagnostics_insights(
+        wards=wards,
+        category_columns=CATEGORY_COLUMNS,
+        score_columns=SCORE_COLUMNS,
+        top_n=5,
+    )
+
+    st.info(insights["summary"])
+
+    priority_wards = insights["priority_wards"]
+
+    if priority_wards:
+        st.markdown("### Wards to investigate first")
+
+        priority_cols = st.columns(min(len(priority_wards), 5))
+
+        for index, item in enumerate(priority_wards):
+            with priority_cols[index % len(priority_cols)]:
+                st.metric(
+                    label=f"Ward {item['ward']}",
+                    value=f"{item['score']:.1f}/100",
+                    help=(
+                        "Relative facility distribution gap score. "
+                        "This is not a direct measure of unmet demand."
+                    ),
+                )
+
+    recommendations = insights["recommendations"]
+
+    if not recommendations:
+        st.success(
+            "No positive category gap scores were available for "
+            "recommendation generation."
+        )
+    else:
+        st.markdown("### Recommended investigations")
+
+        # Show the strongest category gaps first.
+        for index, item in enumerate(recommendations[:8], start=1):
+            with st.expander(
+                f"Ward {item['ward']} · {item['category']} · "
+                f"Gap score {item['gap_score']:.1f}/100",
+                expanded=(index == 1),
+            ):
+                st.markdown(f"**Investigation priority:** {item['urgency']}")
+                st.markdown("**What the data shows**")
+                st.write(item["evidence"])
+
+                st.markdown("**Suggested municipal action**")
+                st.write(item["action"])
+
+                st.caption(
+                    f"Mapped facilities: {item['facility_count']} · "
+                    f"Relative gap score: {item['gap_score']:.1f}/100"
+                )
+
+    st.caption(
+        "These are decision-support suggestions based on mapped facility "
+        "counts and equal-ward distribution scores. Confirm facility "
+        "locations, population demand, operating status, capacity and "
+        "travel access before approving investments."
     )
 
 except Exception as error:

@@ -20,9 +20,7 @@ map_col, diagnostics_col, comparison_col = st.columns(3, gap="large")
 
 with map_col:
     st.markdown("### 🗺️ City Map")
-    st.write(
-        "Explore Mangaluru wards and inspect mapped public facilities."
-    )
+    st.write("Explore Mangaluru wards and inspect mapped public facilities.")
     if st.button("Open City Map", use_container_width=True):
         st.switch_page("pages/admin_map.py")
 
@@ -38,8 +36,8 @@ with diagnostics_col:
 with comparison_col:
     st.markdown("### 📈 Ward Comparison")
     st.write(
-        "Compare ward-level facility counts and identify "
-        "areas that may need further investigation."
+        "Compare facility counts and investigate possible "
+        "service gaps between wards."
     )
     if st.button("Open Ward Comparison", use_container_width=True):
         st.switch_page("pages/ward_comparison.py")
@@ -47,7 +45,6 @@ with comparison_col:
 st.divider()
 
 st.subheader("Civic Complaint Management")
-
 st.write(
     "View resident complaints, update their statuses, "
     "and review complaint statistics."
@@ -59,7 +56,6 @@ if st.button("Manage Civic Reports", use_container_width=True):
 st.divider()
 
 st.subheader("Data Status")
-
 st.info(
     "Facility counts are based on mapped records within ward boundaries. "
     "Population-based investment scores are not enabled because the "
