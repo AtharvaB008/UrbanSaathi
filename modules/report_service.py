@@ -31,6 +31,7 @@ def submit_report(
     latitude=None,
     longitude=None,
     photo_path=None,
+    resident_id=None,
 ):
     """Validate and save a civic report with its initial history."""
 
@@ -85,7 +86,6 @@ def submit_report(
         ):
             raise ValueError("Coordinates are outside valid ranges.")
 
-
     # Validate references to saved complaint photos.
     if photo_path is not None:
         if not isinstance(photo_path, str):
@@ -97,7 +97,9 @@ def submit_report(
         upload_folder = UPLOAD_DIR.resolve()
 
         if photo_file.parent != upload_folder:
-            raise ValueError("Photo must be in the complaint uploads folder.")
+            raise ValueError(
+                "Photo must be in the complaint uploads folder."
+            )
 
         if photo_file.suffix.lower() not in (".jpg", ".png", ".webp"):
             raise ValueError("Unsupported photo format.")
@@ -108,16 +110,23 @@ def submit_report(
         # Store paths consistently using forward slashes.
         photo_path = photo_file.relative_to(PROJECT_ROOT).as_posix()
 
-
+    # Save the complaint, including its Resident ID.
     with get_connection() as connection:
         cursor = connection.execute(
             """
             INSERT INTO civic_reports (
-                title, category, description,
-                ward_id, locality, location_details,
-                latitude, longitude, photo_path
+                title,
+                category,
+                description,
+                ward_id,
+                locality,
+                location_details,
+                latitude,
+                longitude,
+                photo_path,
+                resident_id
             )
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 title.strip(),
@@ -129,15 +138,20 @@ def submit_report(
                 latitude,
                 longitude,
                 photo_path,
+                resident_id,
             ),
         )
 
         report_id = cursor.lastrowid
 
+        # Record the initial complaint status.
         connection.execute(
             """
             INSERT INTO report_status_history (
-                report_id, old_status, new_status, admin_note
+                report_id,
+                old_status,
+                new_status,
+                admin_note
             )
             VALUES (?, ?, ?, ?)
             """,
@@ -174,12 +188,14 @@ def get_reports(category=None, ward_id=None, status=None):
     if category:
         if category not in REPORT_CATEGORIES:
             raise ValueError("Invalid category.")
+
         query += " AND category = ?"
         parameters.append(category)
 
     if ward_id is not None:
         if isinstance(ward_id, bool):
             raise ValueError("Invalid ward number.")
+
         try:
             ward_number = int(ward_id)
         except (TypeError, ValueError, OverflowError):
@@ -199,8 +215,10 @@ def get_reports(category=None, ward_id=None, status=None):
             "Resolved",
             "Rejected / Invalid",
         )
+
         if status not in allowed_statuses:
             raise ValueError("Invalid report status.")
+
         query += " AND status = ?"
         parameters.append(status)
 
@@ -246,7 +264,7 @@ def get_report_by_id(report_id):
             FROM civic_reports
             WHERE report_id = ?
             """,
-            (report_number,)
+            (report_number,),
         ).fetchone()
 
     if row is None:
@@ -274,7 +292,6 @@ def update_report_status(report_id, new_status, admin_note=None):
             "Submitted is an initial status and cannot be assigned again."
         )
 
-
     if isinstance(report_id, bool):
         raise ValueError("Invalid report ID.")
 
@@ -292,7 +309,9 @@ def update_report_status(report_id, new_status, admin_note=None):
     note = admin_note.strip() if admin_note else None
 
     if new_status == "Rejected / Invalid" and not note:
-        raise ValueError("A reason is required when rejecting a report.")
+        raise ValueError(
+            "A reason is required when rejecting a report."
+        )
 
     with get_connection() as connection:
         # Prevent competing status updates during this transaction.
@@ -300,7 +319,7 @@ def update_report_status(report_id, new_status, admin_note=None):
 
         report = connection.execute(
             "SELECT status FROM civic_reports WHERE report_id = ?",
-            (report_number,)
+            (report_number,),
         ).fetchone()
 
         if report is None:
@@ -319,7 +338,7 @@ def update_report_status(report_id, new_status, admin_note=None):
                 updated_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')
             WHERE report_id = ?
             """,
-            (new_status, report_number)
+            (new_status, report_number),
         )
 
         # Record the status change.
@@ -333,11 +352,10 @@ def update_report_status(report_id, new_status, admin_note=None):
             )
             VALUES (?, ?, ?, ?)
             """,
-            (report_number, old_status, new_status, note)
+            (report_number, old_status, new_status, note),
         )
 
     return True
-
 
 
 def get_report_history(report_id):
@@ -368,11 +386,10 @@ def get_report_history(report_id):
             WHERE report_id = ?
             ORDER BY history_id ASC
             """,
-            (report_number,)
+            (report_number,),
         ).fetchall()
 
     return [dict(row) for row in rows]
-
 
 
 def get_report_counts(ward_id=None):
@@ -415,7 +432,7 @@ def get_report_counts(ward_id=None):
     with get_connection() as connection:
         rows = connection.execute(
             query,
-            parameters
+            parameters,
         ).fetchall()
 
     for row in rows:

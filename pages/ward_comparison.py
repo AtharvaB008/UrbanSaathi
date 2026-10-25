@@ -5,8 +5,11 @@ import altair as alt
 
 from modules.ward_facility_counts import build_ward_facility_counts
 from modules.report_service import get_reports
-from modules.insight_agent import summarize_reports, compare_wards
-
+from modules.insight_agent import (
+    summarize_reports,
+    explain_ward,
+    compare_wards,
+)
 
 st.set_page_config(
     page_title="Ward Comparison | UrbanSaathi",
@@ -287,88 +290,95 @@ try:
         "travel times and data completeness before making decisions."
     )
 
-    # ---------------------------------------------------------
-    # AI-assisted ward insights
-    # ---------------------------------------------------------
+    
     st.divider()
     st.header("🤖 AI-Assisted Ward Insights")
     st.caption(
-        "Explanations based on mapped facility counts. Unavailable "
-        "population data, benchmarks and priority scores are not assumed."
+        "Evidence-based explanations for the two selected wards. "
+        "Missing scores and benchmarks are reported as unavailable."
     )
 
-    def make_ward_payload(row, ward_name):
-        return {
-            "ward_id": str(int(row["KGISWardNo"])),
-            "ward_name": ward_name,
-            "priority": {"score": None, "components": []},
-            "facilities": {
-                category: {
-                    "actual_count": int(row[column]),
-                    "benchmark_count": None,
-                    "source": "Mapped ward facility counts",
-                }
-                for category, column in CATEGORY_COLUMNS.items()
-            },
-            "missing_data": [
-                "Verified population and population density",
-                "Validated facility benchmarks",
-                "Official ward priority score",
-            ],
-        }
+    ward_a_data = {
+        "ward_id": str(int(first["KGISWardNo"])),
+        "ward_name": ward_a,
+        "priority": {"score": None, "components": []},
+        "facilities": {
+            category: {
+                "actual_count": int(first[column]),
+                "benchmark_count": None,
+                "source": "Mapped ward facility counts",
+            }
+            for category, column in CATEGORY_COLUMNS.items()
+        },
+        "missing_data": [
+            "Verified population and population density",
+            "Validated facility benchmarks",
+            "Official ward priority score",
+        ],
+    }
 
-    ward_a_data = make_ward_payload(first, ward_a)
-    ward_b_data = make_ward_payload(second, ward_b)
+    ward_b_data = {
+        "ward_id": str(int(second["KGISWardNo"])),
+        "ward_name": ward_b,
+        "priority": {"score": None, "components": []},
+        "facilities": {
+            category: {
+                "actual_count": int(second[column]),
+                "benchmark_count": None,
+                "source": "Mapped ward facility counts",
+            }
+            for category, column in CATEGORY_COLUMNS.items()
+        },
+        "missing_data": [
+            "Verified population and population density",
+            "Validated facility benchmarks",
+            "Official ward priority score",
+        ],
+    }
 
-    try:
-        insights = compare_wards(ward_a_data, ward_b_data)
+    insights = compare_wards(ward_a_data, ward_b_data)
 
-        st.subheader("Ward comparison summary")
-        st.write(insights["score_comparison"])
+    st.subheader("Ward comparison summary")
+    st.write(insights["score_comparison"])
+    st.info(
+        "Official priority scores are not available in this comparison "
+        "dataset. The following findings use observed facility counts "
+        "rather than estimated priority scores."
+    )
 
-        st.info(
-            "Official priority scores and facility benchmarks are not "
-            "available in this comparison dataset. Findings below use "
-            "observed facility counts rather than estimated scores."
-        )
+    for ward_insight in (insights["ward_a"], insights["ward_b"]):
+        with st.container(border=True):
+            st.markdown(f"### {ward_insight['ward_name']}")
+            st.write(ward_insight["summary"])
 
-        for ward_insight in (insights["ward_a"], insights["ward_b"]):
-            with st.container(border=True):
-                st.markdown(f"### {ward_insight['ward_name']}")
-                st.write(ward_insight["summary"])
+            st.markdown("**Facility findings**")
+            for finding in ward_insight["facility_findings"]:
+                actual = finding["actual_count"]
+                benchmark = finding["benchmark_count"]
 
-                st.markdown("**Facility findings**")
+                if benchmark is None:
+                    st.write(
+                        f"- **{finding['category']}:** {actual} mapped "
+                        "facilities; benchmark unavailable."
+                    )
+                else:
+                    st.write(
+                        f"- **{finding['category']}:** {actual} mapped "
+                        f"facilities against a benchmark of {benchmark}."
+                    )
 
-                for finding in ward_insight["facility_findings"]:
-                    actual = finding["actual_count"]
-                    benchmark = finding["benchmark_count"]
+            if ward_insight["warnings"]:
+                st.markdown("**Data limitations**")
+                for warning in ward_insight["warnings"]:
+                    st.write(f"- {warning}")
 
-                    if benchmark is None:
-                        st.write(
-                            f"- **{finding['category']}:** {actual} mapped "
-                            "facilities; benchmark unavailable."
-                        )
-                    else:
-                        st.write(
-                            f"- **{finding['category']}:** {actual} mapped "
-                            f"facilities against a benchmark of {benchmark}."
-                        )
+            if ward_insight["investigations"]:
+                st.markdown("**Recommended investigations**")
+                for recommendation in ward_insight["investigations"]:
+                    st.write(f"- {recommendation}")
 
-                if ward_insight["warnings"]:
-                    st.markdown("**Data limitations**")
-                    for warning in ward_insight["warnings"]:
-                        st.write(f"- {warning}")
+    st.caption(insights["ward_a"]["disclaimer"])
 
-                if ward_insight["investigations"]:
-                    st.markdown("**Recommended investigations**")
-                    for recommendation in ward_insight["investigations"]:
-                        st.write(f"- {recommendation}")
-
-        st.caption(insights["ward_a"]["disclaimer"])
-
-    except Exception as insight_error:
-        st.warning("AI-assisted ward insights could not be generated.")
-        st.caption(f"Technical details: {insight_error}")
 
     # ---------------------------------------------------------
     # Civic complaints in selected wards
