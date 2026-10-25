@@ -11,6 +11,43 @@ st.set_page_config(
 st.markdown(
     """
     <style>
+        /* Hide the dark left sidebar and its navigation */
+        [data-testid="stSidebar"] {
+            display: none !important;
+        }
+
+        /* Remove the black top header bar */
+        [data-testid="stHeader"] {
+            display: none !important;
+        }
+
+        /* Hide the top toolbar */
+        [data-testid="stToolbar"] {
+            display: none !important;
+        }
+
+        /* Remove the decorative top strip */
+        [data-testid="stDecoration"] {
+            display: none !important;
+        }
+
+        /* Let the homepage use the full available width */
+        [data-testid="stAppViewContainer"] > .main {
+            margin-left: 0 !important;
+        }
+
+        .block-container {
+            max-width: 100% !important;
+        }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
+
+st.markdown(
+    """
+    <style>
     .stApp {
         background-color: #F6F9F8;
     }

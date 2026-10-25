@@ -15,6 +15,9 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="collapsed",
 )
+from modules.ui_theme import apply_global_styles
+
+apply_global_styles()
 
 from database.init_db import init_database
 from modules.photo_service import save_complaint_photo

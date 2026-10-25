@@ -9,6 +9,9 @@ st.set_page_config(
     page_icon="🏙️",
     layout="wide",
 )
+from modules.ui_theme import apply_global_styles
+
+apply_global_styles()
 
 st.title("Facilities Distribution")
 st.caption(
